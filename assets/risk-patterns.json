@@ -1,0 +1,327 @@
+{
+  "version": "2.0",
+  "defaults": {
+    "safe_tier": 0,
+    "unknown_target_tier": 3,
+    "max_bump_tier": 3,
+    "never_tier": 4,
+    "bumps": {
+      "env": {
+        "shared": 1,
+        "production": 1,
+        "prod": 1,
+        "remote": 1,
+        "sandbox": -1,
+        "local": 0
+      },
+      "dirty_tree_min_tier": 1,
+      "no_backup_min_tier": 2
+    }
+  },
+  "patterns": [
+    {
+      "id": "rm-root-home",
+      "tier": 4,
+      "regex": "(?:^|\\s)(?:rm|/bin/rm)\\s+-[a-zA-Z]*(?:r|R)[a-zA-Z]*(?:\\s+-[a-zA-Z]+)*\\s+(?:/|~|\\$HOME|/\\*)(?:\\s|$)",
+      "reasons": ["recursive delete of root, home, or a glob of everything"],
+      "preview": "echo 'target is root/home — do not run'",
+      "rollback": "none; hard deny"
+    },
+    {
+      "id": "force-push-default-branch",
+      "tier": 4,
+      "regex": "git\\s+push\\b[^\\n]*(?:--force(?!-with-lease)|-f\\b)[^\\n]*\\b(?:main|master)\\b|git\\s+push\\b[^\\n]*\\+\\S+:(?:main|master)\\b",
+      "reasons": ["force push to main/master rewrites shared history"],
+      "preview": "git symbolic-ref refs/remotes/origin/HEAD",
+      "rollback": "none; hard deny"
+    },
+    {
+      "id": "dd-to-device",
+      "tier": 4,
+      "regex": "\\bdd\\s+[^\\n]*\\bof=/dev/",
+      "reasons": ["raw write to a block device"],
+      "preview": "identify the of= device",
+      "rollback": "none; hard deny"
+    },
+    {
+      "id": "mkfs",
+      "tier": 4,
+      "regex": "\\bmkfs\\b|\\bFormat-Volume\\b|\\bClear-Disk\\b",
+      "reasons": ["formats a filesystem or disk"],
+      "preview": "diskutil list / lsblk",
+      "rollback": "none; hard deny"
+    },
+    {
+      "id": "fork-bomb",
+      "tier": 4,
+      "scope": "command",
+      "regex": ":\\s*\\(\\s*\\)\\s*\\{",
+      "reasons": ["fork bomb"],
+      "preview": "none needed",
+      "rollback": "none; hard deny"
+    },
+    {
+      "id": "pipe-to-shell",
+      "tier": 4,
+      "scope": "command",
+      "regex": "\\b(?:curl|wget)\\b[^\\n]*\\|\\s*(?:sudo\\s+)?(?:ba)?sh\\b|\\biex\\b|(?:^|\\s)-EncodedCommand\\b",
+      "reasons": ["download piped to a shell, or opaque encoded command"],
+      "preview": "download and inspect the script first",
+      "rollback": "none; hard deny"
+    },
+    {
+      "id": "powershell-recursive-root",
+      "tier": 4,
+      "regex": "(?:Remove-Item|ri|rd|rmdir)\\b[^\\n]*-[a-zA-Z]*[rR][a-zA-Z]*[^\\n]*C:",
+      "reasons": ["PowerShell recursive delete at drive root"],
+      "preview": "Get-ChildItem -LiteralPath <target> | Select-Object -First 40",
+      "rollback": "none; hard deny"
+    },
+    {
+      "id": "rm-recursive",
+      "tier": 3,
+      "regex": "(?:^|\\s)(?:rm|/bin/rm)\\s+-[a-zA-Z]*[rR][a-zA-Z]*",
+      "reasons": ["recursive deletion"],
+      "preview": "ls -la <target> | head -40",
+      "rollback": "restore from git or backup; untracked files are permanent"
+    },
+    {
+      "id": "rm-plain",
+      "tier": 1,
+      "regex": "(?:^|\\s)(?:rm|/bin/rm)\\s+|(?:Remove-Item|ri|del|erase)\\b",
+      "reasons": ["file deletion"],
+      "preview": "ls -la <target>",
+      "rollback": "restore from git if tracked, otherwise from backup"
+    },
+    {
+      "id": "git-force-push",
+      "tier": 2,
+      "regex": "git\\s+push\\b[^\\n]*--force(?:-with-lease)?|git\\s+push\\b[^\\n]*\\s-f\\b",
+      "reasons": ["rewrites remote history"],
+      "preview": "git log --oneline origin/<branch>..HEAD",
+      "rollback": "git branch backup/pre-force-push HEAD"
+    },
+    {
+      "id": "git-push-delete",
+      "tier": 3,
+      "regex": "git\\s+push\\b[^\\n]*(?:--delete|--mirror|--all|:[A-Za-z0-9_./-]+)",
+      "reasons": ["deletes or mirrors remote refs"],
+      "preview": "git branch -r --list '*/<branch>'",
+      "rollback": "recreate the ref from its last known commit"
+    },
+    {
+      "id": "git-no-verify",
+      "tier": 3,
+      "regex": "--no-verify\\b",
+      "reasons": ["skips pre-commit/pre-push checks"],
+      "preview": "identify which hook would be skipped",
+      "rollback": "re-run without the flag after checks pass"
+    },
+    {
+      "id": "git-stash-destroy",
+      "tier": 3,
+      "regex": "git\\s+stash\\s+(?:drop|clear)\\b",
+      "reasons": ["discards stashed work"],
+      "preview": "git stash list",
+      "rollback": "none once cleared; keep a backup of refs/stash"
+    },
+    {
+      "id": "git-reflog-destroy",
+      "tier": 3,
+      "regex": "git\\s+reflog\\s+(?:expire|delete)\\b|git\\s+gc\\b[^\\n]*--prune",
+      "reasons": ["destroys recovery history"],
+      "preview": "git reflog --date=iso | head -20",
+      "rollback": "none; recovery refs are being removed"
+    },
+    {
+      "id": "worktree-remove-force",
+      "tier": 3,
+      "regex": "git\\s+worktree\\s+remove\\b[^\\n]*--force",
+      "reasons": ["deletes a worktree with uncommitted work"],
+      "preview": "git -C <worktree> status --short",
+      "rollback": "commit or stash before removal"
+    },
+    {
+      "id": "git-reset-hard",
+      "tier": 2,
+      "regex": "git\\s+reset\\s+--hard",
+      "reasons": ["discards working-tree changes"],
+      "preview": "git status --short && git diff --stat",
+      "rollback": "git stash push -u before resetting, or recover via reflog"
+    },
+    {
+      "id": "git-clean",
+      "tier": 2,
+      "regex": "git\\s+clean\\s+-[a-zA-Z]*[fFdD]",
+      "reasons": ["deletes untracked files"],
+      "preview": "git clean -nd",
+      "rollback": "untracked files are not in git; back them up first"
+    },
+    {
+      "id": "git-discard",
+      "tier": 2,
+      "regex": "git\\s+(?:checkout|restore|switch)\\s+--\\s+|git\\s+checkout\\s+\\.\\s*$",
+      "reasons": ["discards local changes"],
+      "preview": "git diff --stat",
+      "rollback": "git stash push before discarding"
+    },
+    {
+      "id": "git-branch-delete",
+      "tier": 2,
+      "regex": "git\\s+branch\\s+-[a-zA-Z]*[dD]\\b",
+      "reasons": ["deletes a branch"],
+      "preview": "git branch --list <branch> && git log -1 <branch>",
+      "rollback": "recreate from reflog or remote tracking ref"
+    },
+    {
+      "id": "sql-drop",
+      "tier": 3,
+      "regex": "\\bDROP\\s+(?:TABLE|DATABASE|SCHEMA)\\b|\\bTRUNCATE\\s+TABLE\\b",
+      "reasons": ["destroys a schema object and its data"],
+      "preview": "SELECT count(*) FROM <table>",
+      "rollback": "full backup required before any DROP/TRUNCATE"
+    },
+    {
+      "id": "sql-delete-no-where",
+      "tier": 3,
+      "regex": "\\bDELETE\\s+FROM\\b(?![\\s\\S]*\\bWHERE\\b)",
+      "reasons": ["DELETE without WHERE affects every row"],
+      "preview": "SELECT count(*) FROM <table>",
+      "rollback": "transaction with backup; verify row count first"
+    },
+    {
+      "id": "sql-update-no-where",
+      "tier": 3,
+      "regex": "\\bUPDATE\\b(?![\\s\\S]*\\bWHERE\\b)",
+      "reasons": ["UPDATE without WHERE affects every row"],
+      "preview": "SELECT count(*) FROM <table>",
+      "rollback": "transaction; capture affected rows before updating"
+    },
+    {
+      "id": "destructive-migration",
+      "tier": 2,
+      "regex": "\\b(?:migrate|migration)\\b[^\\n]*\\b(?:drop|down|rollback|destructive)\\b",
+      "reasons": ["destructive migration step"],
+      "preview": "show the migration SQL before running",
+      "rollback": "database backup and a tested reverse migration"
+    },
+    {
+      "id": "find-delete",
+      "tier": 3,
+      "regex": "\\bfind\\b[^\\n]*-(?:delete|exec\\s+[^\\n]*\\brm\\b)",
+      "reasons": ["find-based deletion bypasses explicit file lists"],
+      "preview": "run the same find with -print first",
+      "rollback": "none for deleted untracked files"
+    },
+    {
+      "id": "inline-interpreter",
+      "tier": 3,
+      "regex": "\\b(?:python3?|node|perl|ruby|php)\\s+-(?:c|e|p|r)\\b|\\buvx\\b|\\bpipx\\b\\s+run",
+      "reasons": ["inline interpreter code cannot be statically inspected"],
+      "preview": "require the code to be shown before running",
+      "rollback": "unknown until the code is inspected"
+    },
+    {
+      "id": "credential-read",
+      "tier": 3,
+      "regex": "\\b(?:cat|head|less|tail|grep|type|printenv)\\b[^\\n]*(?:\\.env\\b|/\\.ssh/|id_rsa|/credentials\\b|/etc/shadow\\b)|\\bgh\\s+auth\\s+token\\b",
+      "reasons": ["reads secrets or credentials"],
+      "preview": "confirm the file is not secret before reading",
+      "rollback": "revoke any credential that was exposed"
+    },
+    {
+      "id": "chmod-777",
+      "tier": 3,
+      "regex": "\\bchmod\\s+[^\\n]*\\b777\\b",
+      "reasons": ["world-writable permissions"],
+      "preview": "find <target> -maxdepth 2 -printf '%m %p\\n' | head -40",
+      "rollback": "capture original modes first"
+    },
+    {
+      "id": "package-publish",
+      "tier": 3,
+      "regex": "\\b(?:npm|yarn|pnpm)\\s+publish\\b|\\bgem\\s+push\\b",
+      "reasons": ["publishes a package to a public registry"],
+      "preview": "npm pack --dry-run",
+      "rollback": "unpublish where the registry allows it"
+    },
+    {
+      "id": "terraform-destroy",
+      "tier": 3,
+      "regex": "\\bterraform\\s+destroy\\b",
+      "reasons": ["tears down infrastructure"],
+      "preview": "terraform plan -destroy",
+      "rollback": "state backup; re-apply from version control"
+    },
+    {
+      "id": "kubectl-delete",
+      "tier": 2,
+      "regex": "\\bkubectl\\s+delete\\b|\\bhelm\\s+uninstall\\b",
+      "reasons": ["deletes live cluster resources"],
+      "preview": "kubectl get <resource> <name> -o yaml",
+      "rollback": "re-apply the manifest from version control"
+    },
+    {
+      "id": "docker-prune",
+      "tier": 2,
+      "regex": "\\bdocker\\s+(?:system\\s+)?prune\\b|\\bdocker\\s+volume\\s+rm\\b",
+      "reasons": ["removes Docker objects; volumes hold data"],
+      "preview": "docker system df",
+      "rollback": "images can be rebuilt; volumes cannot be restored"
+    },
+    {
+      "id": "chmod-recursive",
+      "tier": 2,
+      "regex": "\\bchmod\\s+-[a-zA-Z]*R|\\bchown\\s+-[a-zA-Z]*R",
+      "reasons": ["recursive permission or ownership change"],
+      "preview": "find <target> -maxdepth 2 -printf '%m %p\\n' | head -40",
+      "rollback": "capture original modes first"
+    },
+    {
+      "id": "kill-nine",
+      "tier": 2,
+      "regex": "\\bkill\\s+-9\\b|\\bStop-Process\\b[^\\n]*-Force",
+      "reasons": ["forced process termination without cleanup"],
+      "preview": "ps -o pid,cmd -p <pid>",
+      "rollback": "restart the service; in-flight work may be lost"
+    },
+    {
+      "id": "truncate",
+      "tier": 2,
+      "regex": "\\btruncate\\s+-s\\b|\\bClear-Content\\b",
+      "reasons": ["resizes a file, discarding data"],
+      "preview": "ls -l <target>",
+      "rollback": "restore from backup or git"
+    },
+    {
+      "id": "bypass-flags",
+      "tier": 2,
+      "regex": "\\s--(?:force|yes|y|assume-yes|no-verify)\\b|\\bi\\s+know\\s+what\\s+i'm\\s+doing\\b",
+      "reasons": ["force/auto-confirm flag bypasses normal safety checks"],
+      "preview": "identify what the flag skips",
+      "rollback": "re-run without the flag after explicit confirmation"
+    },
+    {
+      "id": "sudo",
+      "tier": 2,
+      "regex": "\\bsudo\\b|\\brunas\\b",
+      "reasons": ["elevated privileges"],
+      "preview": "identify the command being elevated",
+      "rollback": "audit changed system files"
+    }
+  ],
+  "safe_exceptions": [
+    {
+      "id": "generated-artifacts",
+      "max_tier": 1,
+      "regex": "(?:^|\\s)(?:rm|/bin/rm)\\s+-[a-zA-Z]*[rR][a-zA-Z]*\\s+(?:node_modules|dist|build|\\.next|__pycache__|\\.cache|\\.turbo|coverage|\\.venv|vendor/bundle)(?:\\s|$)",
+      "reason": "generated artifact, reproducible from source"
+    },
+    {
+      "id": "dry-run",
+      "max_tier": 0,
+      "regex": "(?:git\\s+push\\b[^\\n]*--dry-run|git\\s+clean\\s+-n|terraform\\s+plan|npm\\s+pack\\s+--dry-run)",
+      "reason": "read-only preview"
+    }
+  ]
+}
