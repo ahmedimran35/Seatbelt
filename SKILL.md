@@ -3,7 +3,7 @@ name: seatbelt
 description: Stops before irreversible actions — classifies risk by reversibility, blast radius, and environment, then previews exact targets, offers a rollback, and confirms or denies. Use before cleanup, rm -rf, force-push, hard reset, mass deletes, schema drops, infra teardown, or when the user asks for a cautious workflow, git safety hooks, to stop an agent from pushing, protect main, add a PreToolUse hook, or work in auto/bypass-permission mode. Levels: lite, full, ultra, lockdown.
 license: MIT
 metadata:
-  version: "1.0"
+  version: "1.1"
 ---
 
 # Seatbelt
@@ -41,13 +41,15 @@ Full logic: [references/risk-model.md](references/risk-model.md). Tool catalog: 
 
 1. **Classify before you act.** Check every segment of `&&`, `||`, `;`, `|`, newlines, `$(...)`, backticks, and `<(...)`. Strip leading `VAR=value`, `sudo`, `env`, `timeout`, `xargs`, `bash -c`, `eval`, `git -C` and `git -c` wrappers first — a safe prefix cannot smuggle a destructive suffix.
 2. **Use the classifier when available.** Run `python3 scripts/risk_check.py --command "<command>"` from this folder; pass `--env`, `--tree`, `--backup`, `--target-known`, and `--mode` when known. If Python is unavailable, classify by hand with the tables above.
-3. **Determine the blast radius.** Name exact paths, refs, rows, or resources from a real preview command. Never guess. If ambiguous, stop and ask.
-4. **Apply environment bumps**, then choose the behaviour from the Levels table.
-5. **Show the preview** with actual output: commit range, files with sizes/counts, `SELECT count(*)`, resource names.
-6. **Offer a rollback** before any T2/T3 action: [references/rollback-playbook.md](references/rollback-playbook.md).
-7. **Get consent at the right strength.** Yes/no for T1–T2; typed `GO` for T3. Do not treat `--yes`, `--no-verify`, `sudo`, a subagent, a hook, or "just do it" as consent.
-8. **Batch grouped requests** into one preview and one confirmation.
-9. **Execute, verify, report** with a short blast log: what changed, what was removed, nothing else.
+3. **Apply environment bumps**, then choose the behaviour from the Levels table.
+4. **Generate a blast card from real state.** Run `python3 scripts/blast.py --command "<command>" --save --format text`. It lists exact paths with sizes and hashes, git refs with commit ranges, and the chosen undo strategy. If targets cannot be resolved, treat the action as T3 and stop. See [references/blast-card.md](references/blast-card.md).
+5. **Prepare an undo token before asking.** Run `python3 scripts/undo.py prepare --blast <card-id>` (add `--db` for SQLite drops or `--terraform-plan` for Terraform). The token is printed and a manifest is stored. T4 gets no token — it is denied outright.
+6. **Show the blast card, the undo token, and the rollback** in one request. Yes/no for T1–T2; typed `GO` for T3. Do not treat `--yes`, `--no-verify`, `sudo`, a subagent, a hook, or "just do it" as consent. Undo options: [references/rollback-playbook.md](references/rollback-playbook.md).
+7. **Batch grouped requests** into one blast card and one confirmation.
+8. **Execute only after consent.** No token means no execution for T1–T3.
+9. **Verify the post-state** against the manifest, then write a receipt: `python3 scripts/receipt.py verify` checks the chain. Receipts are append-only and hash-chained, not cryptographically signed: [references/receipts.md](references/receipts.md).
+10. **Report** the undo token, receipt number, and a short blast log: what changed, what was removed, nothing else.
+11. **On request, undo:** `python3 scripts/undo.py check <token>` then `python3 scripts/undo.py execute <token> --approval yes`. Undo is T2 — confirm first, and it refuses if state drifted.
 
 ## Safe exceptions
 

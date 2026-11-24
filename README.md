@@ -12,6 +12,7 @@ Like ponytail (write less code) or caveman (terse output), Seatbelt changes one 
 - Parses chains, pipes, `sudo`/`env`/`bash -c`/`eval`/`git -C` wrappers, substitutions, PowerShell/cmd aliases.
 - Safe exceptions for generated artifacts and read-only previews.
 - Real previews, rollback offers, typed `GO` for T3, grouped confirmations.
+- **Undo + receipts** (the differentiator): every T1–T3 action gets a blast card from real state, an undo token, and an append-only hash-chained receipt. `seatbelt undo <token>` restores the exact pre-state and refuses on drift.
 - Optional Claude Code hook: deny/ask before every Bash/PowerShell/Edit/Write call, including `bypassPermissions` and subagents. JSONL decision log, protected file edits, merge-safe installer, idempotent uninstall.
 
 ## Quick start
@@ -28,6 +29,13 @@ python3 ~/.claude/skills/seatbelt/scripts/hook.py test
 # Tests
 python3 ~/.claude/skills/seatbelt/scripts/test_risk_check.py   # 85 checks
 python3 ~/.claude/skills/seatbelt/scripts/test_hook.py        # 22 checks
+python3 ~/.claude/skills/seatbelt/scripts/test_receipts.py    # undo + receipt checks
+
+# Undo flow
+python3 scripts/blast.py --command "rm -rf dist" --save --format text
+python3 scripts/undo.py prepare --blast <card-id>
+python3 scripts/undo.py execute <token> --approval yes
+python3 scripts/receipt.py verify
 ```
 
 Say `seatbelt lite`, `seatbelt full`, `seatbelt ultra`, or `seatbelt lockdown` to change levels. In OpenCode, use `@seatbelt` or `/seatbelt ultra`.
@@ -39,14 +47,20 @@ seatbelt/
 ├── SKILL.md                       # instruction core
 ├── scripts/
 │   ├── risk_check.py              # classifier (JSON verdict + decision)
+│   ├── blast.py                   # real-state blast card generator
+│   ├── undo.py                    # prepare/check/execute/prune undo tokens
+│   ├── receipt.py                 # append-only hash-chained receipts
 │   ├── hook.py                    # PreToolUse hook + rules/test/check CLI
 │   ├── install_hook.py            # merge-safe installer/uninstaller
 │   ├── test_risk_check.py         # 85 checks
-│   └── test_hook.py               # 22 checks
-├── assets/risk-patterns.json      # editable patterns + safe exceptions
+│   ├── test_hook.py               # 22 checks
+│   └── test_receipts.py           # undo + receipt checks
+├── assets/
+│   ├── risk-patterns.json         # patterns + safe exceptions
+│   └── undo-strategies.json       # prepare/verify/reverse templates
 ├── references/                    # risk model, catalog, rollback, hook setup,
-│                                   # known gaps, comparison, portability
-└── evals/                         # 20 prompts + baseline log
+│                                   # receipts, blast cards, known gaps, comparison
+└── evals/                         # 20 prompts + undo cases + baseline log
 ```
 
 ## Honest limits

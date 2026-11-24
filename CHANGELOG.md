@@ -2,6 +2,18 @@
 
 All notable changes to this skill.
 
+## 1.1.0 — 2026-11-24
+
+Added the uniqueness mechanism: **no T1–T3 action without a blast card, an undo token, and a receipt**.
+
+- `scripts/blast.py` — real-state preview with exact paths, sizes, hashes, git refs and commit ranges; writes cards under `SEATBELT_HOME/blasts/`.
+- `scripts/undo.py` — prepare/check/execute/list/prune. Strategies: `trash`, `git-ref`, `force-push`, `sql-backup` (SQLite), `terraform`. Refuses on state drift.
+- `scripts/receipt.py` — append-only, hash-chained receipts; `verify` detects edits and broken chains. Tamper-evidence, not a signature.
+- `assets/undo-strategies.json` — first-match strategy catalog with explicit limits.
+- Hook reasons now state that an undo token must be prepared before execution.
+- `SKILL.md` workflow updated: classify → blast card → prepare undo → consent → execute → verify → receipt → report → optional undo.
+- New references: `receipts.md`, `blast-card.md`; updated `known-gaps.md`, README, portability, evals.
+
 ## 1.0.0 — 2026-11-24
 
 First public release. An earlier local prototype had four risk tiers, three levels, and a 38-check classifier; its ideas were folded into this release before publication, so there is no separately published v1.

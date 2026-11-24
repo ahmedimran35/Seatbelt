@@ -83,6 +83,8 @@ def reason_for(verdict: dict[str, Any]) -> str:
         bits.append("Hard deny: this shape is never allowed, at any level.")
     elif verdict["typed_go_required"]:
         bits.append("Requires a typed GO (not just 'yes') before acting.")
+    if not verdict["never_tier"]:
+        bits.append("Prepare an undo token before execution; no execute without a receipt.")
     bits.append("Offer the user a safe alternative instead of retrying.")
     return " | ".join(bits)
 

@@ -1,0 +1,46 @@
+{
+  "version": "1.0",
+  "note": "First matching regex wins. Every prepared token expires after 7 days.",
+  "strategies": [
+    {
+      "id": "sql-drop",
+      "strategy": "sql-backup",
+      "regex": "\\bDROP\\s+TABLE\\b|\\bTRUNCATE\\s+TABLE\\b",
+      "requires": "--db <sqlite file>",
+      "reverse": "Restore the backed-up table and verify row count",
+      "limits": "SQLite only in v1.1.0; other databases need an adapter"
+    },
+    {
+      "id": "terraform-destroy",
+      "strategy": "terraform",
+      "regex": "\\bterraform\\s+destroy\\b",
+      "requires": "terraform state files in the working directory; optional --terraform-plan",
+      "reverse": "Copy state back; apply the saved plan only with --apply-plan",
+      "limits": "State can contain secrets; remote state changed by others blocks restore"
+    },
+    {
+      "id": "git-force-push",
+      "strategy": "force-push",
+      "regex": "git\\s+push\\b[^\\n]*(?:--force|-f\\b|\\+\\S+:\\S+)",
+      "requires": "an 'origin' remote",
+      "reverse": "Push a backup tag back to the branch with --force-with-lease",
+      "limits": "Refuses if the remote moved after the backup was taken"
+    },
+    {
+      "id": "git-ref-rewrite",
+      "strategy": "git-ref",
+      "regex": "git\\s+(?:reset\\s+--hard|rebase|cherry-pick|filter-branch|stash\\s+(?:drop|clear))",
+      "requires": "a git repository",
+      "reverse": "Restore the branch ref and pop the stash",
+      "limits": "Stash conflicts require manual resolution"
+    },
+    {
+      "id": "path-delete",
+      "strategy": "trash",
+      "regex": "(?:^|\\s)(?:rm|Remove-Item|ri|del)\\b",
+      "requires": "the targets must exist when the card is generated",
+      "reverse": "Move files back from the manifest-backed trash",
+      "limits": "Paths recreated with different content block restore; secrets need explicit approval"
+    }
+  ]
+}

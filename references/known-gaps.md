@@ -27,6 +27,16 @@ Be honest about these. Seatbelt reads command text; it is not a sandbox, not a p
 - Terraform/helm state corruption that looks like a normal `apply`.
 - Multi-agent collusion where one agent writes a script another agent runs.
 
+## Undo and receipts
+
+- The hook cannot enforce "no execute without a receipt" — it runs before execution, and preparing an undo before consent would itself be a side effect. The rule is conversational.
+- Receipts are hash-chained, not cryptographically signed. Anyone with write access to `~/.seatbelt/receipts.jsonl` can recompute the chain.
+- Undo refuses when state drifted, but it cannot detect every external change (for example, another process rewriting a file to the same hash).
+- SQL restore supports SQLite only in v1.1.0. Other databases need an adapter.
+- Terraform restore copies state back; applying the saved plan is opt-in (`--apply-plan`).
+- Backups of secret paths need explicit approval and are stored with mode `0700`, but they still exist on disk. Do not claim secrets were never written.
+- Undo tokens expire after 7 days; after `prune`, reversal is impossible.
+
 ## For a hard boundary
 
 Use a container or VM, remote branch protection, scoped read-only credentials, and a filesystem-level backup. Tell the user this when they ask whether Seatbelt is a security tool.
