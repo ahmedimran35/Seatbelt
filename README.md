@@ -1,4 +1,4 @@
-# Seatbelt v2
+# Seatbelt
 
 A portable, single-opinion agent skill: **before anything hard to undo, show the exact blast radius and get the right level of consent.** Some shapes are never allowed.
 

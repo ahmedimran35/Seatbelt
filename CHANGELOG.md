@@ -2,19 +2,26 @@
 
 All notable changes to this skill.
 
-## 2.0.0 — 2026-11-24
-
-Major upgrade after a survey of public safety skills and hook projects (gstack careful, TracineHQ guard, agent-guardrails, mattpocock git-guardrails, reins, block-dangerous-commands, headroom).
-
-- Added T4 "Never" hard-deny tier: root/home deletes, default-branch force-push, `dd of=/dev`, `mkfs`, pipe-to-shell, fork bombs, PowerShell encoded commands.
-- Added deterministic PreToolUse hook with allow/ask/deny, persisted modes, JSONL audit log, protected file edits, and a merge-safe installer/uninstaller with backups.
-- Added `lockdown` mode and mode resolution via `.seatbelt/mode.json`, `~/.seatbelt/mode.json`, or `SEATBELT_MODE`.
-- Added wrapper and chain parsing: assignments, `sudo`, `env`, `timeout`, `xargs`, `bash -c`, `eval`, `git -C`, `git -c`, `$(...)`, backticks, process substitution, PowerShell/cmd aliases.
-- Added safe-artifact and dry-run exceptions.
-- Added rules/test/check CLI, 85 classifier checks, 22 hook/installer checks, 20 eval prompts.
-- Added references: hook setup, known gaps, ecosystem comparison.
-- Expanded job-language description for auto-mode trigger phrases.
-
 ## 1.0.0 — 2026-11-24
 
-- First release: four risk tiers, three levels, progressive-disclosure references, 38-check classifier, 12-case eval suite, portable install.
+First public release. An earlier local prototype had four risk tiers, three levels, and a 38-check classifier; its ideas were folded into this release before publication, so there is no separately published v1.
+
+Core:
+- Five risk tiers: T0 safe, T1 reversible, T2 risky, T3 catastrophic, T4 never (hard deny).
+- Four levels: `lite`, `full` (default), `ultra`, `lockdown`.
+- Environment bumps: production/shared, dirty tree, no backup, sandbox.
+- Wrapper and chain parsing: assignments, `sudo`, `env`, `timeout`, `xargs`, `bash -c`, `eval`, `git -C`, `git -c`, `$(...)`, backticks, process substitution, PowerShell/cmd aliases.
+- Safe exceptions for generated artifacts and read-only previews.
+- Real previews, rollback offers, typed `GO` for T3, grouped confirmations.
+
+Enforcement (optional Claude Code add-on):
+- PreToolUse hook with allow/ask/deny, persisted modes, JSONL decision log, protected file edits.
+- Merge-safe installer with backups, idempotent re-runs, and clean uninstall.
+- `rules`, `test`, and `check` CLI for verification.
+
+Documentation and tests:
+- References for risk model, command catalog, rollback playbook, hook setup, known gaps, ecosystem comparison, portability.
+- 85 classifier checks across 71 commands; 22 hook/installer checks; 20 eval prompts plus edge probes.
+- Job-language description for automatic triggering in agent skill lists.
+
+Designed after a survey of public safety skills and hook projects (gstack careful, TracineHQ guard, agent-guardrails, mattpocock git-guardrails, reins, block-dangerous-commands, headroom).

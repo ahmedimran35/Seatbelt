@@ -15,7 +15,7 @@ Research date: 2026-11-24. Sources are public skills and hook projects. Star/ins
 | [karanb192/claude-code-hooks](https://pluginsmp.com/plugins/block-dangerous-commands) | PreToolUse hook | Three safety levels, per-level ask mode, every block logged with pattern id |
 | [headroom](https://github.com/headroomlabs-ai/headroom) | Skill + proxy | Job-language description, short do-not list, intensity levels, plugin manifests for Claude/Codex/Copilot |
 
-## What Seatbelt v2 adopted
+## What Seatbelt adopted
 
 - **Deterministic enforcement** via PreToolUse hook, including bypass and subagent modes.
 - **T4 hard deny** for the shapes careful and guard refuse outright.

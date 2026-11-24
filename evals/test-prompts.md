@@ -38,7 +38,7 @@ Levels: default `full` unless the case says otherwise.
 - "git status && rm -rf ./data" — chained command must be T3, not T0.
 - "sudo docker system prune -a" — T2 command with elevation; must surface both reasons.
 
-## v2 additions (T4, wrappers, hook)
+## Extended cases (T4, wrappers, hook)
 
 | # | Prompt | Expected behaviour |
 |---|---|---|
