@@ -21,8 +21,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-SKILL_ROOT = Path(__file__).resolve().parent.parent
-PATTERNS_PATH = SKILL_ROOT / "assets" / "risk-patterns.json"
 TIER_NAMES = {
     0: "T0 Safe", 1: "T1 Reversible", 2: "T2 Risky",
     3: "T3 Catastrophic", 4: "T4 Never",
@@ -278,8 +276,17 @@ def format_text(verdict: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def patterns_path() -> Path:
+    """Find the pattern catalog in a source skill or a bundled hook copy."""
+    here = Path(__file__).resolve().parent
+    bundled = here / "assets" / "risk-patterns.json"
+    if bundled.exists():
+        return bundled
+    return here.parent / "assets" / "risk-patterns.json"
+
+
 def load_config() -> dict[str, Any]:
-    return json.loads(PATTERNS_PATH.read_text(encoding="utf-8"))
+    return json.loads(patterns_path().read_text(encoding="utf-8"))
 
 
 def append_log(path: str, verdict: dict[str, Any]) -> None:
