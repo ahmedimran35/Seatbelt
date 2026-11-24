@@ -66,6 +66,7 @@ python3 scripts/undo.py check <token>
 python3 scripts/undo.py execute <token> --approval yes
 python3 scripts/undo.py list
 python3 scripts/undo.py prune --older-than 7d
+python3 scripts/receipt.py add --command "rm -rf dist" --tier 1 --undo-token <token> --verified
 python3 scripts/receipt.py list
 python3 scripts/receipt.py verify
 ```

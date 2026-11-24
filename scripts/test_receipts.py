@@ -200,8 +200,16 @@ def case_receipts(tmp: Path) -> None:
     verify = call("receipt.py", ["verify"], cwd, home)
     check("chain valid", verify.returncode == 0, verify.stdout + verify.stderr)
     entries = [json.loads(line) for line in (home / "receipts.jsonl").read_text().splitlines()]
-    check("receipt recorded", len(entries) == 1 and entries[0]["undo_token"] == token)
-    check("receipt verified flag", entries[0]["verified"] is True)
+    check("prepared + undo receipts", len(entries) == 2, str(len(entries)))
+    check("prepared recorded", entries[0]["type"] == "prepared"
+          and entries[0]["undo_token"] == token)
+    check("undo recorded", entries[-1]["type"] == "undo"
+          and entries[-1]["undo_token"] == token)
+    check("undo verified flag", entries[-1]["verified"] is True)
+    added = call("receipt.py", ["add", "--command", "rm -rf x.txt", "--tier", "1",
+                                "--undo-token", token, "--verified"], cwd, home)
+    check("add receipt rc", added.returncode == 0, added.stderr)
+    check("chain after add", call("receipt.py", ["verify"], cwd, home).returncode == 0)
     lines = (home / "receipts.jsonl").read_text().splitlines()
     broken = json.loads(lines[0]); broken["command"] = "tampered"
     (home / "receipts.jsonl").write_text(json.dumps(broken) + "\n")

@@ -47,7 +47,7 @@ Full logic: [references/risk-model.md](references/risk-model.md). Tool catalog: 
 6. **Show the blast card, the undo token, and the rollback** in one request. Yes/no for T1–T2; typed `GO` for T3. Do not treat `--yes`, `--no-verify`, `sudo`, a subagent, a hook, or "just do it" as consent. Undo options: [references/rollback-playbook.md](references/rollback-playbook.md).
 7. **Batch grouped requests** into one blast card and one confirmation.
 8. **Execute only after consent.** No token means no execution for T1–T3.
-9. **Verify the post-state** against the manifest, then write a receipt: `python3 scripts/receipt.py verify` checks the chain. Receipts are append-only and hash-chained, not cryptographically signed: [references/receipts.md](references/receipts.md).
+9. **Verify the post-state** against the manifest, then record the executed action: `python3 scripts/receipt.py add --command "<command>" --tier <n> --undo-token <token> --verified`. `python3 scripts/receipt.py verify` checks the chain. Preparation already wrote a `prepared` receipt. Receipts are append-only and hash-chained, not cryptographically signed: [references/receipts.md](references/receipts.md).
 10. **Report** the undo token, receipt number, and a short blast log: what changed, what was removed, nothing else.
 11. **On request, undo:** `python3 scripts/undo.py check <token>` then `python3 scripts/undo.py execute <token> --approval yes`. Undo is T2 — confirm first, and it refuses if state drifted.
 

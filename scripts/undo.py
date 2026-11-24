@@ -251,6 +251,13 @@ def do_prepare(args: argparse.Namespace) -> int:
         "cwd": card["cwd"], **detail,
     }
     save_manifest(manifest)
+    append_receipt({
+        "type": "prepared", "command": card["command"], "tier": card["tier"],
+        "mode": card.get("mode", "full"), "approval": "pending",
+        "undo_token": token, "verified": True,
+        "notes": f"strategy={strategy}",
+        "agent_id": os.getenv("SEATBELT_AGENT_ID", "unknown"),
+    })
     print(f"Undo token: {token}")
     print(f"Strategy: {strategy}")
     if detail.get("contains_secrets"):

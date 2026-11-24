@@ -79,8 +79,26 @@ def verify() -> tuple[bool, list[str]]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["list", "verify"], default="verify", nargs="?")
+    parser.add_argument("action", choices=["list", "verify", "add"], default="verify", nargs="?")
+    parser.add_argument("--command", default="")
+    parser.add_argument("--tier", type=int, default=0)
+    parser.add_argument("--undo-token", default="-")
+    parser.add_argument("--approval", default="yes")
+    parser.add_argument("--mode", default="full")
+    parser.add_argument("--type", default="action")
+    parser.add_argument("--notes", default="")
+    parser.add_argument("--verified", action="store_true")
     args = parser.parse_args(argv)
+
+    if args.action == "add":
+        record = append({
+            "type": args.type, "command": args.command, "tier": args.tier,
+            "mode": args.mode, "approval": args.approval,
+            "undo_token": args.undo_token, "verified": args.verified,
+            "notes": args.notes, "agent_id": os.getenv("SEATBELT_AGENT_ID", "unknown"),
+        })
+        print(f"Receipt #{record['seq']} written")
+        return 0
 
     if args.action == "list":
         for entry in read_entries():
