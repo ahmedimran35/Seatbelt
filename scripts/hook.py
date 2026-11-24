@@ -26,6 +26,7 @@ from typing import Any
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from risk_check import classify, load_config, append_log  # noqa: E402
+from receipt import has_prepared  # noqa: E402
 
 DEFAULT_MODE = "full"
 MODES = ("lite", "full", "ultra", "lockdown")
@@ -136,6 +137,34 @@ def handle_hook(config: dict[str, Any]) -> int:
         return 0
 
     verdict = classify(command, mode=mode, config=config)
+
+    require_receipts = True
+    for candidate in (project_mode_file(), user_mode_file()):
+        try:
+            cfg = json.loads(candidate.read_text(encoding="utf-8"))
+            require_receipts = bool(cfg.get("require_receipts", True))
+            break
+        except (OSError, json.JSONDecodeError):
+            continue
+    if os.getenv("SEATBELT_REQUIRE_RECEIPTS") in ("0", "1"):
+        require_receipts = os.getenv("SEATBELT_REQUIRE_RECEIPTS") == "1"
+    if mode == "lite":
+        require_receipts = False
+
+    if (require_receipts and verdict["tier"] >= 1
+            and not verdict["never_tier"] and not has_prepared(command)):
+        reason = (
+            "Seatbelt blocked this command: no prepared undo receipt matches it. "
+            "Generate a blast card and run `undo.py prepare` first, then retry. "
+            "Set require_receipts to false in .seatbelt/mode.json only if you "
+            "deliberately want the legacy warn-only behaviour."
+        )
+        verdict["decision"] = "deny"
+        verdict["reasons"] = ["missing prepared undo receipt"]
+        if log_path():
+            append_log(log_path(), verdict)
+        return emit("deny", reason)
+
     if log_path():
         append_log(log_path(), verdict)
 

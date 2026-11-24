@@ -17,7 +17,8 @@ All paths are under `SEATBELT_HOME` (default `~/.seatbelt`):
 blasts/<id>.json       # blast cards
 undos/<token>.json     # undo manifests
 undos/<token>/...      # backups, mode 0700
-receipts.jsonl         # append-only hash-chained receipts
+receipts.jsonl         # append-only hash-chained + HMAC-authenticated receipts
+receipt.key            # local 0600 HMAC key
 decisions.jsonl        # hook decisions (separate)
 ```
 
@@ -42,9 +43,11 @@ Tokens look like `20261124T220000Z-a1b2c3` (UTC timestamp + short hash of comman
  "agent_id":"..."}
 ```
 
-Each receipt stores the previous receipt's hash. `python3 scripts/receipt.py verify` recomputes the chain and reports breaks or edits.
+Each receipt stores the previous receipt's hash plus an HMAC over its contents, using `receipt.key` (mode 0600). `python3 scripts/receipt.py verify` recomputes both and reports breaks, edits, or invalid signatures. `command_hash` lets the hook check whether a `prepared` receipt exists for the exact command.
 
-**This is tamper-evidence, not a digital signature.** Anyone with write access to the file can recompute a chain. Do not present it as non-repudiation.
+**This is tamper-evidence, not non-repudiation.** Someone who can read the local key can forge receipts; there is no trusted timestamp or external signing authority. Pre-1.2 receipts without `sig` are reported as legacy but still accepted by the chain check.
+
+The Claude Code hook denies T1–T3 commands that lack an unconsumed `prepared` receipt. Disable deliberately with `"require_receipts": false` in `.seatbelt/mode.json`.
 
 ## What undo cannot do
 
@@ -67,6 +70,7 @@ python3 scripts/undo.py execute <token> --approval yes
 python3 scripts/undo.py list
 python3 scripts/undo.py prune --older-than 7d
 python3 scripts/receipt.py add --command "rm -rf dist" --tier 1 --undo-token <token> --verified
+python3 scripts/receipt.py check-command --command "rm -rf dist"
 python3 scripts/receipt.py list
 python3 scripts/receipt.py verify
 ```

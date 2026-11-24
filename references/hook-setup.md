@@ -53,6 +53,18 @@ Set one of:
 
 The slash command `/seatbelt lite` writes the project mode file and the hook picks it up on the next tool call.
 
+## Receipt enforcement
+
+By default the hook denies T1–T3 commands that have no unconsumed `prepared` receipt matching the command hash. The intended flow is:
+
+```bash
+python3 scripts/blast.py --command "rm -rf dist" --save
+python3 scripts/undo.py prepare --blast <card-id>   # writes a prepared receipt
+# now the hook allows the command to reach the permission prompt
+```
+
+After execution, record the action with `python3 scripts/receipt.py add ... --verified`. Undo writes a second receipt. `lite` mode disables this check. To keep the old warn-only behaviour, install with `--no-receipt-enforcement` or set `"require_receipts": false` in `.seatbelt/mode.json`.
+
 ## Audit log
 
 Every decision is appended as one JSON line to `~/.seatbelt/decisions.jsonl` (override with `SEATBELT_LOG`):

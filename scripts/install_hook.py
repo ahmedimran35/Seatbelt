@@ -114,8 +114,12 @@ def install(args: argparse.Namespace, project_dir: Path) -> int:
     print(f"Installed hook: {target}")
     write_settings(settings_file, settings)
     mode_file.parent.mkdir(parents=True, exist_ok=True)
-    mode_file.write_text(json.dumps({"mode": args.mode}) + "\n", encoding="utf-8")
+    mode_file.write_text(json.dumps({
+        "mode": args.mode,
+        "require_receipts": not args.no_receipt_enforcement,
+    }) + "\n", encoding="utf-8")
     print(f"Mode: {args.mode} ({mode_file})")
+    print("Receipt enforcement: " + ("on" if not args.no_receipt_enforcement else "off"))
     print("Verify with /hooks, then: python3 " + str(target) + " test")
     return 0
 
@@ -161,6 +165,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--scope", default="project", choices=["project", "local", "user"])
     parser.add_argument("--project-dir", default=".", help="project root (for testing)")
     parser.add_argument("--mode", default="full", choices=["lite", "full", "ultra", "lockdown"])
+    parser.add_argument("--no-receipt-enforcement", action="store_true",
+                        help="allow legacy warn-only behaviour without prepared receipts")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--remove-script", action="store_true")
     parser.add_argument("--remove-mode", action="store_true")

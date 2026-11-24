@@ -46,6 +46,25 @@ def git(*args: str, cwd: str | None = None) -> tuple[int, str]:
     return result.returncode, result.stdout.strip()
 
 
+def quote_ident(name: str, adapter: str) -> str:
+    if adapter == "mysql":
+        return "`" + name.replace("`", "") + "`"
+    return '"' + name.replace('"', "") + '"'
+
+
+def run_sql(adapter: str, db: str, sql: str) -> str:
+    if adapter == "postgres":
+        command = ["psql", "-d", db, "-v", "ON_ERROR_STOP=1", "-Atc", sql]
+    elif adapter == "mysql":
+        command = ["mysql", "-D", db, "-N", "-B", "-e", sql]
+    else:
+        raise SystemExit(f"seatbelt: unknown SQL adapter {adapter}")
+    result = subprocess.run(command, capture_output=True, text=True, check=False)
+    if result.returncode != 0:
+        raise SystemExit(f"seatbelt: {adapter} failed: {result.stderr.strip()}")
+    return result.stdout.strip()
+
+
 def load_blast(ref: str) -> dict[str, Any]:
     path = Path(ref)
     if not path.exists():
@@ -69,7 +88,7 @@ def save_manifest(manifest: dict[str, Any]) -> None:
     )
 
 
-def prepare_trash(card: dict[str, Any], token: str) -> dict[str, Any]:
+def prepare_trash(card: dict[str, Any], token: str, allow_secrets: bool) -> dict[str, Any]:
     root = UNDOS / token / "files"
     entries = []
     secrets = False
@@ -86,6 +105,11 @@ def prepare_trash(card: dict[str, Any], token: str) -> dict[str, Any]:
         mode = oct(source.stat().st_mode & 0o777)
         digest = sha256_file(source) if source.is_file() else None
         if SECRET_RE.search(str(source)):
+            if not allow_secrets:
+                raise SystemExit(
+                    f"seatbelt: refusing to back up secret path {source}; "
+                    "use --allow-secrets only with explicit user approval"
+                )
             secrets = True
         if source.is_dir():
             shutil.copytree(source, backup, dirs_exist_ok=True)
@@ -162,9 +186,10 @@ def prepare_force_push(card: dict[str, Any], token: str) -> dict[str, Any]:
     }
 
 
-def prepare_sql(card: dict[str, Any], token: str, db: str | None) -> dict[str, Any]:
+def prepare_sql(card: dict[str, Any], token: str, db: str | None,
+                adapter: str) -> dict[str, Any]:
     if not db:
-        raise SystemExit("seatbelt: sql-backup requires --db <sqlite-file>")
+        raise SystemExit("seatbelt: sql-backup requires --db <database>")
     match = re.search(
         r"DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?([A-Za-z0-9_]+)", card["command"], re.IGNORECASE
     )
@@ -173,28 +198,45 @@ def prepare_sql(card: dict[str, Any], token: str, db: str | None) -> dict[str, A
     table = match.group(1)
     suffix = re.sub(r"[^A-Za-z0-9_]", "_", token)
     backup = f"seatbelt_{suffix}_{table}"
-    connection = sqlite3.connect(db)
-    try:
-        exists = connection.execute(
-            "SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?", (table,)
-        ).fetchone()[0]
-        if not exists:
-            raise SystemExit(f"seatbelt: table {table} does not exist in {db}")
-        rows = connection.execute(f'SELECT count(*) FROM "{table}"').fetchone()[0]
-        connection.execute(f'CREATE TABLE "{backup}" AS SELECT * FROM "{table}"')
-        connection.commit()
-    finally:
-        connection.close()
+    q_table, q_backup = quote_ident(table, adapter), quote_ident(backup, adapter)
+
+    if adapter == "sqlite":
+        connection = sqlite3.connect(db)
+        try:
+            exists = connection.execute(
+                "SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?", (table,)
+            ).fetchone()[0]
+            if not exists:
+                raise SystemExit(f"seatbelt: table {table} does not exist in {db}")
+            rows = connection.execute(f"SELECT count(*) FROM {q_table}").fetchone()[0]
+            connection.execute(f"CREATE TABLE {q_backup} AS SELECT * FROM {q_table}")
+            connection.commit()
+        finally:
+            connection.close()
+    else:
+        rows_text = run_sql(adapter, db, f"SELECT count(*) FROM {q_table}")
+        try:
+            rows = int(rows_text.splitlines()[0])
+        except (ValueError, IndexError):
+            raise SystemExit(f"seatbelt: cannot read row count for {table}")
+        run_sql(adapter, db, f"CREATE TABLE {q_backup} AS SELECT * FROM {q_table}")
+
     return {
-        "strategy": "sql-backup", "db": db, "table": table, "backup_table": backup,
-        "rows": rows,
+        "strategy": "sql-backup", "adapter": adapter, "db": db,
+        "table": table, "backup_table": backup, "rows": rows,
         "expect": {"backup_rows": rows},
         "reverse": {"type": "restore_sql_table"},
         "contains_secrets": False,
     }
 
 
-def prepare_terraform(card: dict[str, Any], token: str, plan: str | None) -> dict[str, Any]:
+def prepare_terraform(card: dict[str, Any], token: str, plan: str | None,
+                      allow_secrets: bool) -> dict[str, Any]:
+    if not allow_secrets:
+        raise SystemExit(
+            "seatbelt: terraform state can contain secrets; use --allow-secrets "
+            "only with explicit user approval"
+        )
     root = UNDOS / token / "state"
     files = []
     for name in glob.glob("*.tfstate*", root_dir=card["cwd"]):
@@ -231,15 +273,16 @@ def do_prepare(args: argparse.Namespace) -> int:
         raise SystemExit(f"seatbelt: undo token {token} already exists")
 
     if strategy == "trash":
-        detail = prepare_trash(card, token)
+        detail = prepare_trash(card, token, args.allow_secrets)
     elif strategy == "git-ref":
         detail = prepare_git_ref(card, token)
     elif strategy == "force-push":
         detail = prepare_force_push(card, token)
     elif strategy == "sql-backup":
-        detail = prepare_sql(card, token, args.db)
+        detail = prepare_sql(card, token, args.db, args.adapter)
     elif strategy == "terraform":
-        detail = prepare_terraform(card, token, args.terraform_plan)
+        detail = prepare_terraform(card, token, args.terraform_plan, args.allow_secrets)
+        detail["apply_plan"] = args.apply_plan
     else:
         raise SystemExit(f"seatbelt: unknown strategy {strategy}")
 
@@ -294,18 +337,22 @@ def verify_prestate(manifest: dict[str, Any]) -> tuple[bool, str]:
         if code != 0:
             return False, "backup tag missing"
     elif strategy == "sql-backup":
-        connection = sqlite3.connect(manifest["db"])
-        try:
-            rows = connection.execute(
-                f'SELECT count(*) FROM "{manifest["backup_table"]}"'
-            ).fetchone()[0]
-        finally:
-            connection.close()
+        adapter = manifest.get("adapter", "sqlite")
+        q_backup = quote_ident(manifest["backup_table"], adapter)
+        if adapter == "sqlite":
+            connection = sqlite3.connect(manifest["db"])
+            try:
+                rows = connection.execute(f"SELECT count(*) FROM {q_backup}").fetchone()[0]
+            finally:
+                connection.close()
+        else:
+            rows = int(run_sql(adapter, manifest["db"],
+                               f"SELECT count(*) FROM {q_backup}").splitlines()[0])
         if rows != manifest["rows"]:
             return False, "backup table row count changed"
     elif strategy == "terraform":
         for item in manifest["files"]:
-            if sha256_file(item["path"]) != item["sha256"]:
+            if sha256_file(Path(item["path"])) != item["sha256"]:
                 return False, f"state changed: {item['path']}"
     return True, ""
 
@@ -342,21 +389,27 @@ def restore(manifest: dict[str, Any], apply_plan: bool) -> tuple[bool, str]:
         if code != 0:
             return False, f"remote restore failed: {out}"
     elif strategy == "sql-backup":
-        connection = sqlite3.connect(manifest["db"])
-        try:
-            connection.execute("BEGIN")
-            connection.execute(f'DROP TABLE IF EXISTS "{manifest["table"]}"')
-            connection.execute(
-                f'ALTER TABLE "{manifest["backup_table"]}" RENAME TO "{manifest["table"]}"'
-            )
-            connection.commit()
-            rows = connection.execute(
-                f'SELECT count(*) FROM "{manifest["table"]}"'
-            ).fetchone()[0]
-            if rows != manifest["rows"]:
-                notes.append(f"row count mismatch after restore: {rows}")
-        finally:
-            connection.close()
+        adapter = manifest.get("adapter", "sqlite")
+        table = quote_ident(manifest["table"], adapter)
+        backup = quote_ident(manifest["backup_table"], adapter)
+        if adapter == "sqlite":
+            connection = sqlite3.connect(manifest["db"])
+            try:
+                connection.execute("BEGIN")
+                connection.execute(f"DROP TABLE IF EXISTS {table}")
+                connection.execute(f"ALTER TABLE {backup} RENAME TO {table}")
+                connection.commit()
+                rows = connection.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
+            finally:
+                connection.close()
+        else:
+            run_sql(adapter, manifest["db"],
+                    f"BEGIN; DROP TABLE IF EXISTS {table}; "
+                    f"ALTER TABLE {backup} RENAME TO {table}; COMMIT;")
+            rows = int(run_sql(adapter, manifest["db"],
+                               f"SELECT count(*) FROM {table}").splitlines()[0])
+        if rows != manifest["rows"]:
+            notes.append(f"row count mismatch after restore: {rows}")
     elif strategy == "terraform":
         for item in manifest["files"]:
             shutil.copy2(item["backup"], item["path"])
@@ -388,7 +441,7 @@ def do_execute(args: argparse.Namespace) -> int:
             "agent_id": os.getenv("SEATBELT_AGENT_ID", "unknown"),
         })
         return 3
-    ok, notes = restore(manifest, args.apply_plan)
+    ok, notes = restore(manifest, args.apply_plan or manifest.get("apply_plan", False))
     manifest["executed_at"] = datetime.now(timezone.utc).isoformat()
     manifest["restore_ok"] = ok
     save_manifest(manifest)
@@ -443,8 +496,14 @@ def main(argv: list[str] | None = None) -> int:
 
     prep = sub.add_parser("prepare")
     prep.add_argument("--blast", required=True)
-    prep.add_argument("--db", help="sqlite file for sql-backup")
+    prep.add_argument("--db", help="database name or sqlite file for sql-backup")
+    prep.add_argument("--adapter", default="sqlite", choices=["sqlite", "postgres", "mysql"],
+                      help="SQL adapter for sql-backup")
     prep.add_argument("--terraform-plan", help="saved plan for terraform restore")
+    prep.add_argument("--apply-plan", action="store_true",
+                      help="store consent to apply the saved Terraform plan on undo")
+    prep.add_argument("--allow-secrets", action="store_true",
+                      help="explicitly allow backups of secret paths")
 
     execute = sub.add_parser("execute")
     execute.add_argument("token")

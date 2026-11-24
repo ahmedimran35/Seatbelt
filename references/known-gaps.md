@@ -29,13 +29,14 @@ Be honest about these. Seatbelt reads command text; it is not a sandbox, not a p
 
 ## Undo and receipts
 
-- The hook cannot enforce "no execute without a receipt" — it runs before execution, and preparing an undo before consent would itself be a side effect. The rule is conversational.
-- Receipts are hash-chained, not cryptographically signed. Anyone with write access to `~/.seatbelt/receipts.jsonl` can recompute the chain.
-- Undo refuses when state drifted, but it cannot detect every external change (for example, another process rewriting a file to the same hash).
-- SQL restore supports SQLite only in v1.1.0. Other databases need an adapter.
-- Terraform restore copies state back; applying the saved plan is opt-in (`--apply-plan`).
-- Backups of secret paths need explicit approval and are stored with mode `0700`, but they still exist on disk. Do not claim secrets were never written.
+- The Claude Code hook now enforces "no execute without a prepared receipt" for T1–T3 commands. It checks for an unconsumed `prepared` receipt whose command hash matches. It can be disabled deliberately with `"require_receipts": false` in `.seatbelt/mode.json` or `--no-receipt-enforcement` at install. Agents without hooks still rely on the conversational rule.
+- Receipts are hash-chained **and HMAC-authenticated** with a local 0600 key. Someone who can read the key can forge receipts; this is tamper-evidence, not non-repudiation or a trusted timestamp.
+- Undo refuses when state drifted, but it cannot detect every external change — for example, another process writing a file with the same hash.
+- SQL undo supports SQLite (stdlib), PostgreSQL (`psql`) and MySQL (`mysql`). The CLI must be installed and credentials supplied by the environment; no DB driver is bundled.
+- Terraform undo stores consent to apply the saved plan in the token (`--apply-plan` at prepare). It still refuses if state drifted; `terraform` must be installed.
+- Backups of secret paths are **refused by default**. `--allow-secrets` is required, stores data at mode `0700`, and marks the manifest `contains_secrets`. Once written, the secret exists on disk — do not claim otherwise.
 - Undo tokens expire after 7 days; after `prune`, reversal is impossible.
+- `lite` mode disables receipt enforcement by design; it is a warn-only mode.
 
 ## For a hard boundary
 

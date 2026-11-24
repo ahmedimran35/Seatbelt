@@ -6,17 +6,17 @@
       "id": "sql-drop",
       "strategy": "sql-backup",
       "regex": "\\bDROP\\s+TABLE\\b|\\bTRUNCATE\\s+TABLE\\b",
-      "requires": "--db <sqlite file>",
+      "requires": "--db <database> and optionally --adapter sqlite|postgres|mysql",
       "reverse": "Restore the backed-up table and verify row count",
-      "limits": "SQLite only in v1.1.0; other databases need an adapter"
+      "limits": "postgres/mysql require psql/mysql on PATH and env-supplied credentials"
     },
     {
       "id": "terraform-destroy",
       "strategy": "terraform",
       "regex": "\\bterraform\\s+destroy\\b",
-      "requires": "terraform state files in the working directory; optional --terraform-plan",
-      "reverse": "Copy state back; apply the saved plan only with --apply-plan",
-      "limits": "State can contain secrets; remote state changed by others blocks restore"
+      "requires": "terraform state files; --allow-secrets; optional --terraform-plan and --apply-plan",
+      "reverse": "Copy state back; apply the saved plan when consent was stored at prepare time",
+      "limits": "terraform binary required; remote state changed by others blocks restore"
     },
     {
       "id": "git-force-push",
@@ -38,9 +38,9 @@
       "id": "path-delete",
       "strategy": "trash",
       "regex": "(?:^|\\s)(?:rm|Remove-Item|ri|del)\\b",
-      "requires": "the targets must exist when the card is generated",
+      "requires": "the targets must exist when the card is generated; --allow-secrets for secret paths",
       "reverse": "Move files back from the manifest-backed trash",
-      "limits": "Paths recreated with different content block restore; secrets need explicit approval"
+      "limits": "Secret-path backups are refused unless explicitly allowed; recreated paths with different content block restore"
     }
   ]
 }

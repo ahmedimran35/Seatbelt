@@ -3,7 +3,7 @@ name: seatbelt
 description: Stops before irreversible actions — classifies risk by reversibility, blast radius, and environment, then previews exact targets, offers a rollback, and confirms or denies. Use before cleanup, rm -rf, force-push, hard reset, mass deletes, schema drops, infra teardown, or when the user asks for a cautious workflow, git safety hooks, to stop an agent from pushing, protect main, add a PreToolUse hook, or work in auto/bypass-permission mode. Levels: lite, full, ultra, lockdown.
 license: MIT
 metadata:
-  version: "1.1"
+  version: "1.2"
 ---
 
 # Seatbelt

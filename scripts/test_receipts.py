@@ -201,6 +201,7 @@ def case_receipts(tmp: Path) -> None:
     check("chain valid", verify.returncode == 0, verify.stdout + verify.stderr)
     entries = [json.loads(line) for line in (home / "receipts.jsonl").read_text().splitlines()]
     check("prepared + undo receipts", len(entries) == 2, str(len(entries)))
+    check("HMACsig", all("sig" in entry for entry in entries))
     check("prepared recorded", entries[0]["type"] == "prepared"
           and entries[0]["undo_token"] == token)
     check("undo recorded", entries[-1]["type"] == "undo"
@@ -235,11 +236,88 @@ def case_prune_and_fresh_session(tmp: Path) -> None:
     check("prune removed", not manifest_path.exists())
 
 
+def case_secret_refusal(tmp: Path) -> None:
+    cwd, home = tmp / "p11", tmp / "h11"
+    cwd.mkdir(); home.mkdir()
+    secret = cwd / ".env"
+    secret.write_text("SECRET=abc\n")
+    c = card("rm .env", cwd, home)
+    refused = call("undo.py", ["prepare", "--blast", c["id"]], cwd, home)
+    check("secret refusal", refused.returncode != 0 and "secret" in refused.stderr,
+          refused.stderr)
+    token = prepare(c["id"], cwd, home, ["--allow-secrets"])
+    secret.unlink()
+    check("secret undo rc", execute(token, cwd, home) == 0)
+    check("secret restored", secret.read_text() == "SECRET=abc\n")
+
+
+def case_postgres_adapter(tmp: Path) -> None:
+    cwd, home = tmp / "p12", tmp / "h12"
+    cwd.mkdir(); home.mkdir()
+    bindir = tmp / "bin"
+    bindir.mkdir()
+    log = tmp / "psql.log"
+    stub = bindir / "psql"
+    stub.write_text(
+        '#!/bin/sh\nprintf "%s\\n" "$*" >> "$PSQL_LOG"\n'
+        'case "$*" in *"SELECT count(*)"*) echo 2;; esac\n'
+    )
+    stub.chmod(0o755)
+    old_path, old_log = os.environ.get("PATH", ""), os.environ.get("PSQL_LOG")
+    os.environ["PATH"] = str(bindir) + ":" + old_path
+    os.environ["PSQL_LOG"] = str(log)
+    try:
+        c = card("DROP TABLE users;", cwd, home)
+        token = prepare(c["id"], cwd, home, ["--db", "mockdb", "--adapter", "postgres"])
+        check("postgres backup sql", "CREATE TABLE" in log.read_text())
+        check("postgres undo rc", execute(token, cwd, home) == 0)
+        check("postgres restore sql", "ALTER TABLE" in log.read_text())
+    finally:
+        os.environ["PATH"] = old_path
+        if old_log is None:
+            os.environ.pop("PSQL_LOG", None)
+        else:
+            os.environ["PSQL_LOG"] = old_log
+
+
+def case_terraform_consent(tmp: Path) -> None:
+    cwd, home = tmp / "p13", tmp / "h13"
+    cwd.mkdir(); home.mkdir()
+    bindir = tmp / "tfbin"
+    bindir.mkdir()
+    log = tmp / "tf.log"
+    stub = bindir / "terraform"
+    stub.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$TF_LOG"\n')
+    stub.chmod(0o755)
+    (cwd / "terraform.tfstate").write_text('{"version":4}')
+    (cwd / "plan.txt").write_text("plan")
+    old_path, old_log = os.environ.get("PATH", ""), os.environ.get("TF_LOG")
+    os.environ["PATH"] = str(bindir) + ":" + old_path
+    os.environ["TF_LOG"] = str(log)
+    try:
+        c = card("terraform destroy", cwd, home)
+        refused = call("undo.py", ["prepare", "--blast", c["id"]], cwd, home)
+        check("terraform secret refusal", refused.returncode != 0, refused.stderr)
+        token = prepare(c["id"], cwd, home, [
+            "--terraform-plan", "plan.txt", "--apply-plan", "--allow-secrets",
+        ])
+        check("terraform undo rc", execute(token, cwd, home) == 0)
+        check("terraform apply consented", "apply -auto-approve" in log.read_text())
+        check("terraform state restored", (cwd / "terraform.tfstate").read_text() == '{"version":4}')
+    finally:
+        os.environ["PATH"] = old_path
+        if old_log is None:
+            os.environ.pop("TF_LOG", None)
+        else:
+            os.environ["TF_LOG"] = old_log
+
+
 def main() -> int:
     cases = [
         case_trash_file, case_trash_tree, case_generated_artifact, case_git_ref,
         case_force_push, case_sqlite, case_t4, case_drift, case_receipts,
-        case_prune_and_fresh_session,
+        case_prune_and_fresh_session, case_secret_refusal,
+        case_postgres_adapter, case_terraform_consent,
     ]
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)

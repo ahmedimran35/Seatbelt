@@ -12,7 +12,7 @@ Like ponytail (write less code) or caveman (terse output), Seatbelt changes one 
 - Parses chains, pipes, `sudo`/`env`/`bash -c`/`eval`/`git -C` wrappers, substitutions, PowerShell/cmd aliases.
 - Safe exceptions for generated artifacts and read-only previews.
 - Real previews, rollback offers, typed `GO` for T3, grouped confirmations.
-- **Undo + receipts** (the differentiator): every T1–T3 action gets a blast card from real state, an undo token, and an append-only hash-chained receipt. `seatbelt undo <token>` restores the exact pre-state and refuses on drift.
+- **Undo + receipts** (the differentiator): every T1–T3 action gets a blast card from real state, an undo token, and an append-only, hash-chained, HMAC-authenticated receipt. `seatbelt undo <token>` restores the exact pre-state and refuses on drift. The hook denies commands with no prepared receipt.
 - Optional Claude Code hook: deny/ask before every Bash/PowerShell/Edit/Write call, including `bypassPermissions` and subagents. JSONL decision log, protected file edits, merge-safe installer, idempotent uninstall.
 
 ## Quick start
@@ -37,6 +37,8 @@ python3 scripts/undo.py prepare --blast <card-id>
 python3 scripts/undo.py execute <token> --approval yes
 python3 scripts/receipt.py verify
 ```
+
+SQL drops support SQLite, PostgreSQL and MySQL via `--adapter`. Secret-path backups require `--allow-secrets`; Terraform undo can store apply consent with `--apply-plan`.
 
 Say `seatbelt lite`, `seatbelt full`, `seatbelt ultra`, or `seatbelt lockdown` to change levels. In OpenCode, use `@seatbelt` or `/seatbelt ultra`.
 

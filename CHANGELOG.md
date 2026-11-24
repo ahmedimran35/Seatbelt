@@ -2,6 +2,17 @@
 
 All notable changes to this skill.
 
+## 1.2.0 — 2026-11-24
+
+Fixed the five known limitations of v1.1.x:
+
+- **Hook enforcement:** T1–T3 commands without an unconsumed `prepared` receipt are denied by the PreToolUse hook. Opt out with `"require_receipts": false` or `--no-receipt-enforcement`. `lite` stays warn-only.
+- **Receipt authenticity:** HMAC over each receipt using a local 0600 key, in addition to the hash chain. `receipt.py verify` checks both; `check-command` lets the hook match commands by `command_hash`. Legacy unsigned receipts are reported, not rejected.
+- **SQL adapters:** PostgreSQL (`psql`) and MySQL (`mysql`) join SQLite for backup/restore; adapter selected with `--adapter`.
+- **Terraform consent:** `--apply-plan` at prepare time is stored in the undo token, so undo applies the saved plan automatically without a second manual step.
+- **Secret paths:** backups of `.env`, SSH keys, credentials and Terraform state are refused unless `--allow-secrets` is passed explicitly; data is stored at mode `0700` and marked in the manifest.
+- Updated `known-gaps.md`, `receipts.md`, `hook-setup.md`, `undo-strategies.json`; 13 undo scenarios and 14 hook decisions now covered.
+
 ## 1.1.0 — 2026-11-24
 
 Added the uniqueness mechanism: **no T1–T3 action without a blast card, an undo token, and a receipt**.
