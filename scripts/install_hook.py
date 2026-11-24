@@ -17,8 +17,7 @@ from pathlib import Path
 from typing import Any
 
 HERE = Path(__file__).resolve().parent
-SOURCE_HOOK = HERE / "hook.py"
-SCRIPT_MARKER = "seatbelt-hook.py"
+SCRIPT_MARKER = Path("seatbelt") / "hook.py"
 
 
 def settings_path(scope: str, project_dir: Path) -> Path:
@@ -30,9 +29,9 @@ def settings_path(scope: str, project_dir: Path) -> Path:
 
 
 def script_path(scope: str, project_dir: Path) -> Path:
-    if scope == "user":
-        return Path.home() / ".claude" / "hooks" / SCRIPT_MARKER
-    return project_dir / ".claude" / "hooks" / SCRIPT_MARKER
+    hooks_dir = Path.home() / ".claude" / "hooks" if scope == "user" \
+        else project_dir / ".claude" / "hooks"
+    return hooks_dir / SCRIPT_MARKER
 
 
 def mode_path(scope: str, project_dir: Path) -> Path:
@@ -106,7 +105,12 @@ def install(args: argparse.Namespace, project_dir: Path) -> int:
         return 0
 
     target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(SOURCE_HOOK, target)
+    shutil.copytree(
+        HERE, target.parent,
+        dirs_exist_ok=True,
+        ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+    )
+    shutil.copytree(HERE.parent / "assets", target.parent / "assets", dirs_exist_ok=True)
     print(f"Installed hook: {target}")
     write_settings(settings_file, settings)
     mode_file.parent.mkdir(parents=True, exist_ok=True)
@@ -142,9 +146,9 @@ def uninstall(args: argparse.Namespace, project_dir: Path) -> int:
         return 0
 
     write_settings(settings_file, settings)
-    if args.remove_script and target.exists():
-        target.unlink()
-        print(f"Removed script: {target}")
+    if args.remove_script and target.parent.exists():
+        shutil.rmtree(target.parent)
+        print(f"Removed hook directory: {target.parent}")
     if args.remove_mode and mode_file.exists():
         mode_file.unlink()
         print(f"Removed mode file: {mode_file}")

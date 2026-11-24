@@ -13,7 +13,7 @@ python3 scripts/hook.py test                                        # 12 decisio
 ```
 
 The installer:
-- copies `scripts/hook.py` to `.claude/hooks/seatbelt-hook.py` (or `~/.claude/hooks/`);
+- copies the scripts and assets to `.claude/hooks/seatbelt/` (or `~/.claude/hooks/seatbelt/`), so `hook.py` can import `risk_check.py` and load `assets/risk-patterns.json`;
 - adds one `PreToolUse` group with matcher `Bash|PowerShell|Edit|Write`;
 - merges into existing `hooks.PreToolUse` without removing other entries;
 - backs up the old settings file as `settings.json.bak-<timestamp>`;

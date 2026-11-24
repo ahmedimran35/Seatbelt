@@ -116,7 +116,7 @@ def main() -> int:
             failures.append("install clobbered unrelated settings")
         if not any("echo other" in json.dumps(g) for g in groups):
             failures.append("install removed an existing hook")
-        if not any("seatbelt-hook.py" in json.dumps(g) for g in groups):
+        if not any("seatbelt/hook.py" in json.dumps(g) for g in groups):
             failures.append("install did not add the seatbelt hook")
         if not list(project.glob(".claude/settings.json.bak-*")):
             failures.append("install did not create a backup")
@@ -140,11 +140,11 @@ def main() -> int:
         if uninstall.returncode != 0:
             failures.append("uninstall failed: " + uninstall.stderr)
         final = json.loads(settings_file.read_text())
-        if "seatbelt-hook.py" in json.dumps(final):
+        if "seatbelt/hook.py" in json.dumps(final):
             failures.append("uninstall left the hook behind")
         if "echo other" not in json.dumps(final):
             failures.append("uninstall removed an unrelated hook")
-        if (project / ".claude" / "hooks" / "seatbelt-hook.py").exists():
+        if (project / ".claude" / "hooks" / "seatbelt" / "hook.py").exists():
             failures.append("uninstall --remove-script left the script")
         if mode_file.exists():
             failures.append("uninstall --remove-mode left the mode file")
